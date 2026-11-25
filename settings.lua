@@ -1,0 +1,14 @@
+local function n(key,label,min,max,step) return {key=key,label=label,type='int',min=min,max=max,step=step or 1} end
+local function b(key,label) return {key=key,label=label,type='bool'} end
+local function loc(key,label) return {label=label,settings={b(key..'.enabled','Enabled'),{key=key..'.coords',label='Location',type='vec3',here=true,place={model='s_m_y_dealer_01',ped=true}},{key=key..'.radius',label='Interaction radius',type='number',min=3,max=30,step=1},b(key..'.blip','Map blip'),{key=key..'.name',label='Map label',type='string',maxLen=40}}} end
+Whip.configPage({label='WAiNK',groups={
+    {label='Scanner',settings={b('Enabled','Enable WAiNK'),n('PreviewWidth','Camera field width (%)',15,65),n('PreviewFps','Preview frames per second',10,30),{key='ScanRange',label='Scan range',type='number',min=3,max=35,step=1},n('ScanMs','Scan time (ms)',500,4000,100),{key='AccessRange',label='Tool range',type='number',min=2,max=5,step=0.5},b('ItemConsume','Consume tools on success')}},
+    {label='Skill games',settings={n('LockKitSeconds','Lock Kit time (seconds)',8,36)}},
+    {label='Economy',settings={n('SalePercent','Resale percentage',1,80),n('RegistrationPercent','Registration percentage',1,100),n('SaleCooldown','Sale cooldown (seconds)',0,3600),n('Prices.low','Low vehicle base value',100,1000000),n('Prices.medium','Medium vehicle base value',100,1000000),n('Prices.high','High vehicle base value',100,1000000),n('Prices.elite','Elite vehicle base value',100,2000000)}},
+    {label='Vehicle eligibility',settings={b('UnknownPopulation','Allow unowned unknown-population cars'),b('SessionPopulation','Allow unowned WHIP session cars'),b('ScriptedPopulation','Allow unregistered scripted cars (advanced)')}},
+    {label='Vehicle models',settings={{key='AdditionalStreetModels',label='Approved add-on vehicle spawn names',type='string',maxLen=512}}},
+    {label='Security',settings={n('AlarmChance','Alarm chance (%)',0,100),n('TrackerChance','Tracker chance (%)',0,100),n('AdvancedChance','Advanced tracker share (%)',0,100)}},
+    loc('Buyer','Vehicle dealer'),
+    {label='Dealer map blip',settings={n('Blips.Sprite','Map icon (sprite ID)',1,1000),n('Blips.Colour','Map icon colour',0,85),{key='Blips.Scale',label='Map icon scale',type='number',min=0.3,max=2.0,step=0.05},b('Blips.ShortRange','Only show on nearby minimap')}},
+    {label='Dealer character',settings={{key='Buyer.model',label='Ped model',type='string',maxLen=64},{key='Buyer.heading',label='Ped heading',type='number',min=0,max=360,step=1},{key='Buyer.zOffset',label='Ped height adjustment',type='number',min=-2,max=2,step=0.05},{key='Buyer.useInteriorGate',label='Use custom MLO loading gate',type='bool',help='Leave off for base-game garages. Enable only for custom MLOs that need it.'},{key='Buyer.speaker',label='Character name',type='string',maxLen=32}}}
+}})

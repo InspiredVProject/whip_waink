@@ -1,0 +1,107 @@
+--- a/client/main.lua
++++ b/client/main.lua
+@@ -175,6 +175,7 @@
+     end
+ end
+ 
++local externalAim = nil -- CookieLabs: registered WAiNK module camera input lease
+ local blockWarned = false     -- Config.BlockControls refused: said once per session (setOpen)
+ 
+ -- PUT AWAY BY WHAT HAPPENS TO YOU (Josh, 3 Nov 2026): the phone listens for what puts it away (a death, a logout,
+@@ -202,10 +203,23 @@
+     end)
+ end
+ 
++local function blockPhoneControls()
++    local blocked, why = Whip.core:BlockControls('whip_phone', { groups = Config.BlockControls, controls = { 199, 200 } })
++    if blocked ~= true and GetResourceState('whip_core') == 'started' then
++        if not blockWarned then
++            blockWarned = true
++            print(('^3[whip_phone] Config.BlockControls was refused: %s. Only Start / Esc are blocked while the phone is up.^7')
++                :format(tostring(why)))
++        end
++        Whip.core:BlockControls('whip_phone', { controls = { 199, 200 } })
++    end
++end
++
+ --- mode: what it opens as ('phone' or 'tablet'), for what goes in the hand.
+ local function setOpen(on, mode)
+     if open == on then return end
+     open = on
++    if not on then externalAim = nil end
+     if on then watchKnockedDown() end
+     if on then screen:open() else screen:close() end
+     if on then
+@@ -217,15 +231,7 @@
+         -- THE ANSWER IS READ (audit 11, DX-3): one wrong name in Config.BlockControls refused the whole block, Start and
+         -- Esc with it, and nothing said so. Said once, with whip_core's reason (it lists the real group names), and
+         -- the pause keys blocked on their own so Esc stays the phone's.
+-        local blocked, why = Whip.core:BlockControls('whip_phone', { groups = Config.BlockControls, controls = { 199, 200 } })
+-        if blocked ~= true and GetResourceState('whip_core') == 'started' then
+-            if not blockWarned then
+-                blockWarned = true
+-                print(('^3[whip_phone] Config.BlockControls was refused: %s. Only Start / Esc are blocked while the phone is up.^7')
+-                    :format(tostring(why)))
+-            end
+-            Whip.core:BlockControls('whip_phone', { controls = { 199, 200 } })
+-        end
++        blockPhoneControls()
+     else
+         Whip.core:UnblockControls('whip_phone')
+         Whip.core:UnblockControls('whip_phone:keys')   -- (an app that took every key: the page says so too)
+@@ -329,6 +335,47 @@
+     f.p:resolve(type(result) == 'table' and result or {})
+ end
+ 
++-- CookieLabs WAiNK: temporarily release look controls while keeping the original Duo NUI visible.
++-- Only the resource that registered WAiNK can acquire/release this lease.
++local function releaseExternalAim()
++    if not externalAim then return end
++    externalAim = nil
++    if open then
++        Whip.core:UnblockControls('whip_phone')
++        blockPhoneControls()
++        screen:open()
++        nui({ type = 'focus', on = true })
++    end
++end
++exports('SetWainkAim', function(on)
++    local m = external.waink
++    if not m or m.resource ~= GetInvokingResource() then return false end
++    if not on then releaseExternalAim(); return true end
++    if not open or view ~= 'phone' or forced or externalAim then return false end
++    externalAim = m.resource
++    screen:close()
++    Whip.core:UnblockControls('whip_phone')
++    Whip.core:UnblockControls('whip_phone:keys')
++    local ok = Whip.core:BlockControls('whip_phone', { groups = { 'combat', 'vehicleCombat', 'weaponWheel' }, controls = { 199, 200 } })
++    if ok ~= true then
++        releaseExternalAim()
++        return false
++    end
++    SetNuiFocusKeepInput(false)
++    SetNuiFocus(false, false)
++    nui({ type = 'focus', on = false })
++    return true
++end)
++AddEventHandler('onResourceStop', function(res)
++    if externalAim == res then releaseExternalAim() end
++end)
++RegisterNUICallback('wainkPoll', function(data, cb)
++    local m = external.waink
++    if not open or not m or m.resource ~= 'whip_waink' or GetResourceState(m.resource) ~= 'started' then return cb({active=false, reason='WAiNK camera unavailable'}) end
++    local ok, result = pcall(function() return exports.whip_waink:CameraPoll(type(data)=='table' and data.readyGeneration or -1) end)
++    cb(ok and type(result)=='table' and result or {active=false,reason='WAiNK camera unavailable'})
++end)
++
+ --- Is this a phone app (built in, or another resource's)?
+ local function hasApp(id)
+     for _, m in ipairs(Config.Modules) do if m == id then return true end end
+@@ -346,6 +393,7 @@
+     if not hasApp(id) then return nil, 'no app' end
+     if not nuiReady then return nil, 'not ready' end
+     if Whip.core:IsPlayerDead() == true then return nil, 'dead' end
++    releaseExternalAim()
+     local f = { app = id, p = promise.new(), wasOpen = open, wasView = view }
+     forced = f
+     -- Held still while it plays, as the ring holds the player (the page still hears the keyboard and the pad). Taken
